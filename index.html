@@ -2,89 +2,308 @@
 <html lang="zh-HK">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>B3A Fu Tai ⇄ Shenzhen Bay</title>
+<meta name="description" content="B3A 富泰邨 ⇄ 深圳灣口岸 實時到站時間（城巴開放數據）">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=Noto+Sans+HK:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <style>
+  /* Layout: the area map is a fixed full-page background; panels float over it
+     (left column on wide screens, scrolling up from mid-screen on phones).
+     Palette: Shenzhen Bay at dusk — estuary blue ground, sodium-lamp orange for the numbers that matter. */
   :root {
-    --bg: #f6f5f1; --card: #ffffff; --text: #1d1d1b; --muted: #6e6c66;
-    --accent: #c8102e; --line: #e4e2dc;
+    --bg: #eaf0f5;          /* estuary mist */
+    --panel: #ffffff;
+    --ink: #13233a;         /* deep bay blue */
+    --muted: #5a6b80;
+    --line: #d3dde7;
+    --sodium: #c9620f;      /* sodium lamp, darkened for contrast on light */
+    --return: #3f6f9f;      /* return-trip line */
+    --danger: #b3261e;
+    --shadow: 0 1px 2px rgb(19 35 58 / 6%), 0 8px 24px rgb(19 35 58 / 6%);
+    --tile-filter: saturate(0.45) contrast(0.92) brightness(1.04);
+    --font-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", sans-serif;
+    --font-body: "Noto Sans HK", "PingFang HK", "Microsoft JhengHei", system-ui, sans-serif;
+    color-scheme: light;
   }
   @media (prefers-color-scheme: dark) {
-    :root { --bg: #151514; --card: #1f1f1d; --text: #f1efe9; --muted: #9a978f;
-            --accent: #ff5a6e; --line: #2e2e2b; }
+    :root:not([data-theme="light"]) {
+      --bg: #0e1a2b; --panel: #15253b; --ink: #f3ebdf; --muted: #9db0c7; --line: #243954;
+      --sodium: #f39a48; --return: #7fa8d6; --danger: #ff8a80;
+      --shadow: 0 1px 2px rgb(0 0 0 / 30%), 0 8px 24px rgb(0 0 0 / 25%);
+      --tile-filter: invert(1) hue-rotate(185deg) saturate(0.5) brightness(0.8) contrast(0.9);
+      color-scheme: dark;
+    }
   }
+  :root[data-theme="dark"] {
+    --bg: #0e1a2b; --panel: #15253b; --ink: #f3ebdf; --muted: #9db0c7; --line: #243954;
+    --sodium: #f39a48; --return: #7fa8d6; --danger: #ff8a80;
+    --shadow: 0 1px 2px rgb(0 0 0 / 30%), 0 8px 24px rgb(0 0 0 / 25%);
+    --tile-filter: invert(1) hue-rotate(185deg) saturate(0.5) brightness(0.8) contrast(0.9);
+    color-scheme: dark;
+  }
+
   * { box-sizing: border-box; }
-  body {
-    margin: 0; background: var(--bg); color: var(--text);
-    font: 16px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang HK", sans-serif;
-    display: flex; justify-content: center; padding: 32px 16px;
+  html { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 400 16px/1.5 var(--font-body); }
+
+  /* Background map */
+  #map { position: fixed; inset: 0; z-index: 0; background: var(--line); }
+
+  /* Floating content. Gaps let the map through; only panels catch pointer events. */
+  .wrap {
+    position: relative; z-index: 1; pointer-events: none;
+    width: 100%; max-width: 440px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 16px 24px;
+    display: grid; gap: 14px; align-content: start;
   }
-  main { width: 100%; max-width: 420px; }
-  header { display: flex; align-items: baseline; gap: 12px; margin-bottom: 4px; }
-  .route { font-size: 40px; font-weight: 800; color: var(--accent); letter-spacing: -1px; }
-  .dest { font-size: 18px; font-weight: 600; }
-  .from { color: var(--muted); margin: 0 0 20px; }
-  section + section { margin-top: 36px; }
-  ul { list-style: none; margin: 0; padding: 0; background: var(--card);
-       border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
-  li { display: flex; justify-content: space-between; align-items: center;
-       padding: 18px 20px; border-top: 1px solid var(--line); }
-  li:first-child { border-top: 0; }
-  .min { font-size: 36px; font-weight: 700; font-variant-numeric: tabular-nums; }
-  .min small { font-size: 16px; font-weight: 500; color: var(--muted); margin-left: 4px; }
-  .time { color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
-  .rmk { display: block; font-size: 13px; }
-  .empty { padding: 24px 20px; color: var(--muted); }
-  footer { margin-top: 12px; font-size: 13px; color: var(--muted); display: flex; justify-content: space-between; }
-  .err { color: var(--accent); }
+  .wrap > * { pointer-events: auto; }
+  .glass { background: color-mix(in srgb, var(--panel) 90%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-radius: 18px; box-shadow: var(--shadow); }
+  .hero-title { justify-self: start; padding: 10px 16px 10px 12px; display: flex; align-items: center; gap: 10px; border-radius: 14px; }
+  .route-no { font: 800 30px/1 var(--font-display); color: var(--sodium); letter-spacing: -0.02em; }
+  .hero-title h1 { margin: 0; font-size: 15px; font-weight: 700; line-height: 1.25; text-wrap: balance; }
+  .hero-title p { margin: 0; font-size: 12px; color: var(--muted); }
+  .legend {
+    position: fixed; z-index: 2; right: max(12px, env(safe-area-inset-right, 0px)); top: calc(16px + env(safe-area-inset-top, 0px));
+    border-radius: 10px; padding: 6px 10px; font-size: 12px; color: var(--muted); display: grid; gap: 2px;
+  }
+  .legend span { display: flex; align-items: center; gap: 6px; }
+  .legend i { width: 22px; height: 0; border-top: 3px solid var(--sodium); }
+  .legend i.ret { border-top: 2px dashed var(--return); }
+
+  /* Toolbar */
+  .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 10px 10px 16px; flex-wrap: wrap; border-radius: 999px; }
+  #status { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 0; }
+  #status .err { color: var(--danger); }
+  #refresh {
+    display: inline-flex; align-items: center; gap: 8px;
+    font: 500 15px/1 var(--font-body); color: var(--ink);
+    background: var(--panel); border: 1px solid var(--line); border-radius: 999px;
+    padding: 10px 18px 10px 14px; cursor: pointer;
+    transition: transform .12s ease, border-color .12s ease;
+  }
+  #refresh:hover { border-color: var(--sodium); }
+  #refresh:active { transform: scale(.97); }
+  #refresh:focus-visible { outline: 2px solid var(--sodium); outline-offset: 2px; }
+  #refresh svg { width: 18px; height: 18px; color: var(--sodium); }
+  #refresh.loading svg { animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Direction panels */
+  .dir { padding: 18px 20px 16px; min-width: 0; display: grid; gap: 14px; }
+  .dir-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  .dir-head h2 { margin: 0; font-size: 18px; font-weight: 700; text-wrap: balance; }
+  .dir-head p { margin: 2px 0 0; font-size: 13px; color: var(--muted); }
+  .locate {
+    flex: none; font: 500 13px/1 var(--font-body); color: var(--muted); background: none;
+    border: 1px solid var(--line); border-radius: 999px; padding: 7px 11px; cursor: pointer;
+  }
+  .locate:hover { color: var(--ink); border-color: var(--muted); }
+  .locate:focus-visible { outline: 2px solid var(--sodium); outline-offset: 2px; }
+  .next { display: flex; align-items: baseline; gap: 10px; min-height: 84px; }
+  .big { font: 800 84px/0.9 var(--font-display); color: var(--sodium); letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
+  .big.due { font-size: 48px; letter-spacing: 0; font-family: var(--font-body); font-weight: 700; }
+  .unit { font-size: 17px; font-weight: 500; }
+  .clock { margin-left: auto; font: 500 17px/1 var(--font-display); color: var(--muted); font-variant-numeric: tabular-nums; }
+  .later { list-style: none; margin: 0; padding: 12px 0 0; border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 8px; }
+  .later li { font-size: 14px; color: var(--muted); background: color-mix(in srgb, var(--bg) 80%, transparent); border-radius: 999px; padding: 5px 12px; font-variant-numeric: tabular-nums; }
+  .later li b { font: 800 16px/1 var(--font-display); color: var(--ink); margin-right: 2px; }
+  .later:empty { display: none; }
+  .empty { font-size: 15px; color: var(--muted); align-self: center; }
+  .rmk { font-size: 12px; color: var(--sodium); }
+
+  footer { padding: 10px 16px; font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; gap: 4px 12px; flex-wrap: wrap; border-radius: 12px; }
+  footer a { color: inherit; }
+
+  /* Leaflet in theme */
+  .leaflet-container { font-family: var(--font-body); background: var(--line); }
+  /* OpenStreetMap tiles, toned toward the page palette (inverted in dark mode). */
+  .leaflet-tile-pane { filter: var(--tile-filter); }
+  .leaflet-control-attribution { font-size: 10px; }
+  .leaflet-tooltip.stop-label {
+    background: var(--panel); color: var(--ink); border: 0; border-radius: 8px; box-shadow: var(--shadow);
+    font-size: 12px; font-weight: 700; padding: 3px 8px;
+  }
+  .leaflet-tooltip.stop-label::before { display: none; }
+  .leaflet-tooltip.stop-minor { background: var(--panel); color: var(--ink); border: 1px solid var(--line); font-size: 12px; }
+  .leaflet-tooltip.stop-minor::before { display: none; }
+  .leaflet-bar a { background: var(--panel); color: var(--ink); border-color: var(--line); }
+
+  /* Phones: map fills the top of the screen, panels scroll up over it. */
+  @media (max-width: 759px) {
+    .wrap { max-width: none; padding-top: 0; }
+    .hero-title { position: fixed; z-index: 2; top: calc(12px + env(safe-area-inset-top, 0px)); left: max(12px, env(safe-area-inset-left, 0px)); padding: 8px 12px 8px 10px; }
+    .toolbar { margin-top: 46vh; }
+    .big { font-size: 72px; }
+    .route-no { font-size: 26px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #refresh.loading svg { animation: none; }
+    #refresh { transition: none; }
+  }
 </style>
 </head>
 <body>
-<main>
-  <section>
-    <header><span class="route">B3A</span><span class="dest">往 深圳灣口岸</span></header>
-    <p class="from">還有多久到 <b>富泰邨</b>（青山公路）</p>
-    <ul id="list-out"><li class="empty">載入中…</li></ul>
-  </section>
-  <section>
-    <header><span class="route">B3A</span><span class="dest">往 富泰 · 山景邨</span></header>
-    <p class="from">還有多久到 <b>深圳灣口岸</b>（開出）</p>
-    <ul id="list-in"><li class="empty">載入中…</li></ul>
-  </section>
-  <footer><span id="status"></span><span>城巴 · DATA.GOV.HK</span></footer>
+<div id="map" role="img" aria-label="B3A 路線圖：富泰邨至深圳灣口岸"></div>
+<div class="legend glass" aria-hidden="true">
+  <span><i></i>往深圳灣</span>
+  <span><i class="ret"></i>往富泰 · 山景</span>
+</div>
+
+<main class="wrap">
+  <div class="hero-title glass">
+    <span class="route-no">B3A</span>
+    <div><h1>富泰 ⇄ 深圳灣口岸</h1><p>城巴 · 實時到站</p></div>
+  </div>
+  <div class="toolbar glass">
+    <span id="status" aria-live="polite">載入中…</span>
+    <button id="refresh" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg>
+      刷新
+    </button>
+  </div>
+
+    <section class="dir glass" id="dir-out">
+      <div class="dir-head">
+        <div><h2>往 深圳灣口岸</h2><p>到 富泰邨（青山公路）還有</p></div>
+        <button class="locate" type="button" data-stop="003261">地圖</button>
+      </div>
+      <div class="next"><span class="empty">載入中…</span></div>
+      <ul class="later"></ul>
+    </section>
+    <section class="dir glass" id="dir-in">
+      <div class="dir-head">
+        <div><h2>往 富泰 · 山景邨</h2><p>深圳灣口岸開出還有</p></div>
+        <button class="locate" type="button" data-stop="003208">地圖</button>
+      </div>
+      <div class="next"><span class="empty">載入中…</span></div>
+      <ul class="later"></ul>
+    </section>
+
+  <footer class="glass">
+    <span>資料：城巴 · <a href="https://data.gov.hk/tc-data/dataset/ctb-eta-transport-realtime-eta" target="_blank" rel="noopener">DATA.GOV.HK</a>，每 30 秒自動更新</span>
+    <span>路線圖為近似走線</span>
+  </footer>
 </main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
+  // Stop list from Citybus route-stop API; road paths snapped with OSRM once and embedded.
+  const ROUTE = {"stops":{"outbound":[{"id":"003201","name":"山景邨景麗樓","lat":22.40096,"lng":113.96646},{"id":"003202","name":"大興變電站","lat":22.40092,"lng":113.96884},{"id":"003203","name":"台山商會小學","lat":22.40124,"lng":113.97192},{"id":"003204","name":"大興體育館","lat":22.40355,"lng":113.97263},{"id":"003256","name":"大興北休憩處","lat":22.4049,"lng":113.96886},{"id":"003257","name":"新圍苑","lat":22.40539,"lng":113.96404},{"id":"003258","name":"兆邦苑","lat":22.40766,"lng":113.96604},{"id":"003259","name":"寶田邨","lat":22.40883,"lng":113.96709},{"id":"003752","name":"和田邨","lat":22.41284,"lng":113.96864},{"id":"003753","name":"NOVO LAND","lat":22.41226,"lng":113.97055},{"id":"003754","name":"紫田村","lat":22.41442,"lng":113.97389},{"id":"003207","name":"欣田邨","lat":22.41422,"lng":113.97713},{"id":"003350","name":"五柳路","lat":22.41555,"lng":113.97976},{"id":"003261","name":"富泰邨","lat":22.41295,"lng":113.98217},{"id":"003208","name":"深圳灣口岸","lat":22.50166,"lng":113.94519}],"inbound":[{"id":"003208","name":"深圳灣口岸","lat":22.50166,"lng":113.94519},{"id":"003262","name":"富泰商場","lat":22.41249,"lng":113.98238},{"id":"003351","name":"五柳路","lat":22.41544,"lng":113.97968},{"id":"003209","name":"欣田邨","lat":22.41475,"lng":113.97739},{"id":"004004","name":"菁田邨","lat":22.41309,"lng":113.97231},{"id":"003767","name":"NOVO LAND","lat":22.412,"lng":113.97035},{"id":"003752","name":"和田邨","lat":22.41284,"lng":113.96864},{"id":"003264","name":"盈豐園","lat":22.40801,"lng":113.96727},{"id":"003265","name":"良景邨","lat":22.40651,"lng":113.9638},{"id":"003266","name":"田景邨田裕樓","lat":22.4054,"lng":113.96471},{"id":"003267","name":"建生邨樂生樓","lat":22.40511,"lng":113.96885},{"id":"003213","name":"大興體育館","lat":22.40373,"lng":113.9728},{"id":"003214","name":"翠林花園","lat":22.40108,"lng":113.97196},{"id":"003201","name":"山景邨景麗樓","lat":22.40096,"lng":113.96646}]},"paths":{"outbound":[[22.401,113.96646],[22.40106,113.96609],[22.40177,113.96614],[22.40184,113.96623],[22.40174,113.96731],[22.40099,113.96729],[22.40089,113.96896],[22.40132,113.97292],[22.40424,113.9727],[22.40485,113.97253],[22.40527,113.97056],[22.40528,113.97015],[22.40517,113.96947],[22.4047,113.96807],[22.40466,113.96661],[22.40537,113.96471],[22.40551,113.96364],[22.40574,113.96342],[22.40615,113.96344],[22.40732,113.96444],[22.4075,113.96469],[22.40766,113.96567],[22.40734,113.96709],[22.40982,113.96725],[22.41029,113.96738],[22.41138,113.96817],[22.41177,113.96836],[22.41272,113.9685],[22.41321,113.96849],[22.4134,113.96836],[22.4135,113.96841],[22.41342,113.96856],[22.41198,113.96851],[22.4118,113.96916],[22.41181,113.96958],[22.41193,113.97011],[22.41257,113.97131],[22.41363,113.97307],[22.41422,113.97373],[22.41457,113.97427],[22.41455,113.97464],[22.41388,113.97519],[22.41381,113.97574],[22.41345,113.97619],[22.41339,113.97671],[22.41525,113.97741],[22.41596,113.97789],[22.41528,113.98063],[22.41529,113.98086],[22.41542,113.9811],[22.41587,113.98157],[22.41588,113.98184],[22.4152,113.98235],[22.41488,113.98248],[22.41343,113.98236],[22.41188,113.98238],[22.41184,113.98175],[22.41156,113.98132],[22.4117,113.98124],[22.41163,113.98112],[22.4117,113.98124],[22.41156,113.98132],[22.41184,113.98175],[22.41188,113.98228],[22.41343,113.98227],[22.41456,113.98241],[22.41506,113.98233],[22.41546,113.982],[22.41574,113.98159],[22.41503,113.98119],[22.41494,113.98089],[22.41503,113.98072],[22.4152,113.98075],[22.41555,113.98129],[22.41587,113.98157],[22.41588,113.98184],[22.41573,113.98197],[22.41563,113.98225],[22.41542,113.98441],[22.41562,113.98663],[22.41597,113.98845],[22.41631,113.98958],[22.41699,113.99079],[22.41779,113.9917],[22.41812,113.99185],[22.41846,113.99186],[22.41895,113.99158],[22.4192,113.9911],[22.4192,113.99063],[22.41891,113.98912],[22.41893,113.98841],[22.41909,113.98779],[22.41942,113.98729],[22.42074,113.98612],[22.42194,113.98529],[22.42527,113.98339],[22.42667,113.98277],[22.42747,113.98255],[22.42859,113.9824],[22.42967,113.98242],[22.43059,113.98256],[22.43192,113.98297],[22.43424,113.98418],[22.43519,113.98456],[22.43657,113.98497],[22.44033,113.98566],[22.44178,113.98554],[22.44257,113.98526],[22.44337,113.98479],[22.44513,113.98349],[22.44714,113.98109],[22.44754,113.98032],[22.44811,113.97847],[22.44867,113.97756],[22.4493,113.97702],[22.45078,113.97603],[22.45223,113.97416],[22.45283,113.97358],[22.45715,113.97045],[22.45871,113.96948],[22.46392,113.96659],[22.46682,113.96461],[22.46846,113.9633],[22.47019,113.96173],[22.4774,113.95425],[22.47966,113.95217],[22.48108,113.95102],[22.48304,113.94963],[22.48873,113.94627],[22.49015,113.94561],[22.49065,113.94552],[22.49111,113.94559],[22.49216,113.94609],[22.49267,113.94617],[22.50173,113.946],[22.50251,113.94583],[22.50529,113.9458],[22.50564,113.94565],[22.5064,113.94601],[22.5078,113.94608],[22.50802,113.94642],[22.508,113.94728],[22.50764,113.9475],[22.50727,113.9473],[22.50721,113.94701],[22.50736,113.94675],[22.50762,113.94663],[22.50809,113.94665],[22.50881,113.94683],[22.50891,113.94717],[22.50875,113.94745],[22.50836,113.94746],[22.50823,113.94734],[22.50815,113.94704],[22.50816,113.9388],[22.50795,113.93881],[22.50799,113.94184],[22.50781,113.94233],[22.5059,113.94251],[22.50561,113.94281],[22.50553,113.94352],[22.50542,113.94363],[22.50288,113.94367],[22.50242,113.94375],[22.50248,113.9439],[22.50191,113.94437],[22.50181,113.94471],[22.50194,113.94491],[22.50234,113.9446],[22.50244,113.94471],[22.50199,113.94503],[22.50185,113.94503]],"inbound":[[22.50185,113.94503],[22.50174,113.94473],[22.50144,113.94471],[22.50072,113.94563],[22.50018,113.94589],[22.49055,113.94597],[22.48963,113.9461],[22.48809,113.9468],[22.48272,113.95007],[22.48065,113.9516],[22.47854,113.95341],[22.47062,113.96153],[22.46784,113.96403],[22.46598,113.96544],[22.46419,113.96662],[22.459,113.96951],[22.45725,113.97059],[22.45553,113.97178],[22.45315,113.97364],[22.451,113.97604],[22.44921,113.97723],[22.4486,113.97785],[22.44817,113.97864],[22.4477,113.98022],[22.44743,113.98083],[22.44599,113.98276],[22.44478,113.98394],[22.44288,113.98524],[22.44222,113.98556],[22.44157,113.98574],[22.44027,113.98577],[22.43722,113.98523],[22.43564,113.98484],[22.43416,113.98428],[22.43193,113.98312],[22.43056,113.98269],[22.42968,113.98256],[22.4286,113.98255],[22.4275,113.98269],[22.42669,113.98291],[22.42534,113.98351],[22.42289,113.98493],[22.42147,113.98596],[22.42024,113.98709],[22.41972,113.98771],[22.4195,113.98835],[22.41942,113.9889],[22.41948,113.99049],[22.41937,113.99107],[22.41896,113.99171],[22.4183,113.9921],[22.41776,113.99219],[22.41738,113.99209],[22.41693,113.99184],[22.41652,113.99137],[22.41609,113.99037],[22.41569,113.98856],[22.41524,113.98406],[22.41503,113.98337],[22.41464,113.9828],[22.41456,113.98249],[22.41343,113.98236],[22.41188,113.98238],[22.41184,113.98175],[22.41156,113.98132],[22.4117,113.98124],[22.41163,113.98112],[22.4117,113.98124],[22.41156,113.98132],[22.41184,113.98175],[22.41188,113.98228],[22.41339,113.98227],[22.4149,113.98239],[22.41528,113.98218],[22.41574,113.98159],[22.41508,113.98125],[22.41494,113.98089],[22.41529,113.98026],[22.41549,113.9797],[22.41558,113.97898],[22.41576,113.97839],[22.41574,113.97816],[22.41561,113.97808],[22.41534,113.97745],[22.4133,113.97669],[22.41341,113.97617],[22.41381,113.97574],[22.41388,113.97519],[22.41455,113.97464],[22.41457,113.97427],[22.41358,113.97298],[22.41239,113.97107],[22.41181,113.9699],[22.41177,113.96907],[22.41189,113.96839],[22.41272,113.9685],[22.41321,113.96849],[22.4134,113.96836],[22.4135,113.96841],[22.41342,113.96856],[22.41198,113.96851],[22.41154,113.96838],[22.41033,113.96752],[22.40981,113.96734],[22.4073,113.96721],[22.40766,113.96567],[22.4075,113.96469],[22.40732,113.96444],[22.40615,113.96344],[22.40574,113.96342],[22.40551,113.96364],[22.40537,113.96471],[22.40473,113.96639],[22.40483,113.9681],[22.40537,113.96986],[22.40547,113.97239],[22.40452,113.97279],[22.40207,113.97292],[22.40126,113.97307],[22.4008,113.96893],[22.401,113.96646]]}};
+
   const BASE = "https://rt.data.gov.hk/v2/transport/citybus/eta/CTB";
+  const REFRESH_MS = 30000;
   // Toward Shenzhen Bay -> when buses reach Fu Tai Estate (Castle Peak Road).
   // Toward Fu Tai -> when buses leave Shenzhen Bay Port.
   const DIRS = [
-    { url: `${BASE}/003261/B3A`, dir: "O", el: document.getElementById("list-out"), etas: [] },
-    { url: `${BASE}/003208/B3A`, dir: "I", el: document.getElementById("list-in"), etas: [] },
+    { url: `${BASE}/003261/B3A`, dir: "O", el: document.getElementById("dir-out"), etas: [] },
+    { url: `${BASE}/003208/B3A`, dir: "I", el: document.getElementById("dir-in"), etas: [] },
   ];
   const statusEl = document.getElementById("status");
-  let lastOk = null, error = null;
+  const refreshBtn = document.getElementById("refresh");
+  const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let lastOk = null, error = null, loading = false, nextAt = 0, timer = null;
 
-  function renderList(d, now) {
+  // ---------- Map ----------
+  const phone = matchMedia("(max-width: 759px)");
+  // On phones the map is a still backdrop so swipes scroll the page; on wide screens it can be dragged.
+  const map = L.map("map", { scrollWheelZoom: !phone.matches, dragging: !phone.matches, tap: false, zoomControl: !phone.matches, attributionControl: true });
+  map.zoomControl?.setPosition("bottomright");
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  }).addTo(map);
+  matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", drawRoute);
+
+  const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  const KEY_STOPS = { "003261": "富泰邨", "003208": "深圳灣口岸", "003201": "山景邨" };
+  const markers = {};
+  let routeLayer = null;
+
+  function drawRoute() {
+    if (routeLayer) routeLayer.remove();
+    routeLayer = L.layerGroup().addTo(map);
+    const sodium = css("--sodium"), ret = css("--return"), panel = css("--panel");
+    L.polyline(ROUTE.paths.inbound, { color: ret, weight: 3, dashArray: "6 6", opacity: 0.9 }).addTo(routeLayer);
+    L.polyline(ROUTE.paths.outbound, { color: sodium, weight: 4, opacity: 0.95 }).addTo(routeLayer);
+
+    const seen = new Set();
+    [...ROUTE.stops.outbound, ...ROUTE.stops.inbound].forEach(s => {
+      if (seen.has(s.id)) return;
+      seen.add(s.id);
+      const key = s.id in KEY_STOPS;
+      const m = L.circleMarker([s.lat, s.lng], {
+        radius: key ? 8 : 4, weight: key ? 3 : 2,
+        color: key ? sodium : ret, fillColor: panel, fillOpacity: 1,
+      }).addTo(routeLayer);
+      if (key) m.bindTooltip(KEY_STOPS[s.id], { permanent: true, direction: "right", offset: [10, 0], className: "stop-label" });
+      else m.bindTooltip(s.name, { direction: "top", className: "stop-minor" });
+      markers[s.id] = m;
+    });
+  }
+  drawRoute();
+  const allPts = [...ROUTE.paths.outbound, ...ROUTE.paths.inbound];
+  // Fit the route into the part of the screen the panels don't cover.
+  function fitRoute() {
+    const opts = phone.matches
+      ? { paddingTopLeft: [24, 70], paddingBottomRight: [24, Math.round(innerHeight * 0.56)] }
+      : { paddingTopLeft: [480, 70], paddingBottomRight: [48, 48] };
+    map.fitBounds(L.latLngBounds(allPts), opts);
+  }
+  fitRoute();
+  phone.addEventListener?.("change", () => location.reload());
+
+  document.querySelectorAll(".locate").forEach(btn => btn.addEventListener("click", () => {
+    const m = markers[btn.dataset.stop];
+    if (!m) return;
+    // Centre the stop in the visible part of the map, not behind the panels.
+    const size = map.getSize();
+    const visible = phone.matches ? L.point(size.x / 2, size.y * 0.23) : L.point(240 + (size.x - 480) / 2 + 240, size.y / 2);
+    const offset = L.point(size.x / 2, size.y / 2).subtract(visible);
+    const zoom = 16;
+    const target = map.unproject(map.project(m.getLatLng(), zoom).add(offset), zoom);
+    map.flyTo(target, zoom, { animate: !reduceMotion, duration: 0.8 });
+    m.openTooltip();
+    if (phone.matches) scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" });
+  }));
+
+  // ---------- Arrivals ----------
+  const fmtClock = t => new Date(t).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Hong_Kong" });
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+  function renderDir(d, now) {
+    const nextEl = d.el.querySelector(".next");
+    const laterEl = d.el.querySelector(".later");
     const upcoming = d.etas.filter(e => e.t > now - 60000);
     if (!upcoming.length) {
-      d.el.innerHTML = `<li class="empty">${d.failed ? "未能載入班次" : "暫時沒有 B3A 班次"}</li>`;
+      nextEl.innerHTML = `<span class="empty">${d.failed ? "未能載入班次，請按「刷新」再試" : "暫時沒有 B3A 班次"}</span>`;
+      laterEl.innerHTML = "";
       return;
     }
-    d.el.innerHTML = upcoming.map(e => {
-      const m = Math.ceil((e.t - now) / 60000);
-      const clock = new Date(e.t).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Hong_Kong" });
-      const label = m <= 0 ? "即將到站" : `${m}<small>分鐘</small>`;
-      return `<li><span class="min">${label}</span><span class="time">${clock}${e.rmk ? `<span class="rmk">${e.rmk}</span>` : ""}</span></li>`;
+    const [first, ...rest] = upcoming;
+    const m = Math.ceil((first.t - now) / 60000);
+    nextEl.innerHTML = (m <= 0
+      ? `<span class="big due">即將到站</span>`
+      : `<span class="big">${m}</span><span class="unit">分鐘</span>`)
+      + `<span class="clock">${fmtClock(first.t)}${first.rmk ? `<br><span class="rmk">${esc(first.rmk)}</span>` : ""}</span>`;
+    laterEl.innerHTML = rest.map(e => {
+      const mm = Math.max(0, Math.ceil((e.t - now) / 60000));
+      return `<li><b>${mm}</b> 分 · ${fmtClock(e.t)}${e.rmk ? ` · ${esc(e.rmk)}` : ""}</li>`;
     }).join("");
   }
 
   function render() {
     const now = Date.now();
-    DIRS.forEach(d => renderList(d, now));
-    const ago = lastOk ? Math.round((now - lastOk) / 1000) : null;
-    statusEl.innerHTML = error
-      ? `<span class="err">${error}</span>${ago !== null ? ` · 上次成功 ${ago} 秒前` : ""}`
-      : ago !== null ? `${ago} 秒前更新` : "";
+    DIRS.forEach(d => renderDir(d, now));
+    const ago = lastOk ? Math.max(0, Math.round((now - lastOk) / 1000)) : null;
+    const until = Math.max(0, Math.ceil((nextAt - now) / 1000));
+    if (loading) statusEl.textContent = "更新中…";
+    else if (error) statusEl.innerHTML = `<span class="err">${esc(error)}</span>${ago !== null ? ` · 上次成功 ${ago} 秒前` : ""}`;
+    else if (ago !== null) statusEl.textContent = `${ago} 秒前更新 · ${until} 秒後自動刷新`;
   }
 
   async function loadDir(d) {
@@ -98,16 +317,32 @@
   }
 
   async function load() {
+    if (loading) return;
+    loading = true;
+    clearTimeout(timer);
+    refreshBtn.classList.add("loading");
+    refreshBtn.setAttribute("aria-busy", "true");
+    render();
     const results = await Promise.allSettled(DIRS.map(loadDir));
     results.forEach((r, i) => DIRS[i].failed = r.status === "rejected" && !DIRS[i].etas.length);
     const failed = results.find(r => r.status === "rejected");
-    if (failed) error = `更新失敗（${failed.reason.message}）`;
+    if (failed) error = `更新失敗（${failed.reason.message}），請檢查網絡`;
     else { error = null; lastOk = Date.now(); }
+    loading = false;
+    refreshBtn.classList.remove("loading");
+    refreshBtn.removeAttribute("aria-busy");
+    nextAt = Date.now() + REFRESH_MS;
+    timer = setTimeout(load, REFRESH_MS);
     render();
   }
 
+  refreshBtn.addEventListener("click", load);
+  // Phones pause timers in the background; catch up as soon as the page is visible again.
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && Date.now() >= nextAt) load();
+  });
+
   load();
-  setInterval(load, 30000);
   setInterval(render, 1000);
 </script>
 </body>
