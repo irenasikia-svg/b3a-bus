@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="zh-HK">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>B3A Fu Tai ⇄ Shenzhen Bay</title>
+<style>
+  :root {
+    --bg: #f6f5f1; --card: #ffffff; --text: #1d1d1b; --muted: #6e6c66;
+    --accent: #c8102e; --line: #e4e2dc;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #151514; --card: #1f1f1d; --text: #f1efe9; --muted: #9a978f;
+            --accent: #ff5a6e; --line: #2e2e2b; }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang HK", sans-serif;
+    display: flex; justify-content: center; padding: 32px 16px;
+  }
+  main { width: 100%; max-width: 420px; }
+  header { display: flex; align-items: baseline; gap: 12px; margin-bottom: 4px; }
+  .route { font-size: 40px; font-weight: 800; color: var(--accent); letter-spacing: -1px; }
+  .dest { font-size: 18px; font-weight: 600; }
+  .from { color: var(--muted); margin: 0 0 20px; }
+  section + section { margin-top: 36px; }
+  ul { list-style: none; margin: 0; padding: 0; background: var(--card);
+       border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+  li { display: flex; justify-content: space-between; align-items: center;
+       padding: 18px 20px; border-top: 1px solid var(--line); }
+  li:first-child { border-top: 0; }
+  .min { font-size: 36px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .min small { font-size: 16px; font-weight: 500; color: var(--muted); margin-left: 4px; }
+  .time { color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+  .rmk { display: block; font-size: 13px; }
+  .empty { padding: 24px 20px; color: var(--muted); }
+  footer { margin-top: 12px; font-size: 13px; color: var(--muted); display: flex; justify-content: space-between; }
+  .err { color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <section>
+    <header><span class="route">B3A</span><span class="dest">往 深圳灣口岸</span></header>
+    <p class="from">還有多久到 <b>富泰邨</b>（青山公路）</p>
+    <ul id="list-out"><li class="empty">載入中…</li></ul>
+  </section>
+  <section>
+    <header><span class="route">B3A</span><span class="dest">往 富泰 · 山景邨</span></header>
+    <p class="from">還有多久到 <b>深圳灣口岸</b>（開出）</p>
+    <ul id="list-in"><li class="empty">載入中…</li></ul>
+  </section>
+  <footer><span id="status"></span><span>城巴 · DATA.GOV.HK</span></footer>
+</main>
+<script>
+  const BASE = "https://rt.data.gov.hk/v2/transport/citybus/eta/CTB";
+  // Toward Shenzhen Bay -> when buses reach Fu Tai Estate (Castle Peak Road).
+  // Toward Fu Tai -> when buses leave Shenzhen Bay Port.
+  const DIRS = [
+    { url: `${BASE}/003261/B3A`, dir: "O", el: document.getElementById("list-out"), etas: [] },
+    { url: `${BASE}/003208/B3A`, dir: "I", el: document.getElementById("list-in"), etas: [] },
+  ];
+  const statusEl = document.getElementById("status");
+  let lastOk = null, error = null;
+
+  function renderList(d, now) {
+    const upcoming = d.etas.filter(e => e.t > now - 60000);
+    if (!upcoming.length) {
+      d.el.innerHTML = `<li class="empty">${d.failed ? "未能載入班次" : "暫時沒有 B3A 班次"}</li>`;
+      return;
+    }
+    d.el.innerHTML = upcoming.map(e => {
+      const m = Math.ceil((e.t - now) / 60000);
+      const clock = new Date(e.t).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Hong_Kong" });
+      const label = m <= 0 ? "即將到站" : `${m}<small>分鐘</small>`;
+      return `<li><span class="min">${label}</span><span class="time">${clock}${e.rmk ? `<span class="rmk">${e.rmk}</span>` : ""}</span></li>`;
+    }).join("");
+  }
+
+  function render() {
+    const now = Date.now();
+    DIRS.forEach(d => renderList(d, now));
+    const ago = lastOk ? Math.round((now - lastOk) / 1000) : null;
+    statusEl.innerHTML = error
+      ? `<span class="err">${error}</span>${ago !== null ? ` · 上次成功 ${ago} 秒前` : ""}`
+      : ago !== null ? `${ago} 秒前更新` : "";
+  }
+
+  async function loadDir(d) {
+    const res = await fetch(d.url, { cache: "no-store" });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    d.etas = (json.data || [])
+      .filter(e => e.dir === d.dir && e.eta)
+      .map(e => ({ t: Date.parse(e.eta), rmk: e.rmk_tc }))
+      .sort((a, b) => a.t - b.t);
+  }
+
+  async function load() {
+    const results = await Promise.allSettled(DIRS.map(loadDir));
+    results.forEach((r, i) => DIRS[i].failed = r.status === "rejected" && !DIRS[i].etas.length);
+    const failed = results.find(r => r.status === "rejected");
+    if (failed) error = `更新失敗（${failed.reason.message}）`;
+    else { error = null; lastOk = Date.now(); }
+    render();
+  }
+
+  load();
+  setInterval(load, 30000);
+  setInterval(render, 1000);
+</script>
+</body>
+</html>
