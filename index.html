@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>B3A Fu Tai ⇄ Shenzhen Bay</title>
-<meta name="description" content="B3A 富泰邨 ⇄ 深圳灣口岸 實時到站時間，並可搜尋其他城巴路線（城巴開放數據）">
+<meta name="description" content="B3A 富泰邨 ⇄ 深圳灣口岸 實時到站時間，並可搜尋九巴、龍運及城巴路線（DATA.GOV.HK 開放數據）">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=Noto+Sans+HK:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=5">
 </head>
 <body>
 <div id="map" role="img" aria-label="路線圖"></div>
@@ -24,8 +24,8 @@
   <div class="search glass" role="search">
     <div class="search-row">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-      <input id="q" type="search" placeholder="搜尋城巴路線，例如 B3X 或 中環" autocomplete="off" autocapitalize="characters" spellcheck="false"
-             role="combobox" aria-expanded="false" aria-controls="results" aria-autocomplete="list" aria-label="搜尋城巴路線">
+      <input id="q" type="search" placeholder="搜尋九巴或城巴路線，例如 960、B3X、中環" autocomplete="off" autocapitalize="characters" spellcheck="false"
+             role="combobox" aria-expanded="false" aria-controls="results" aria-autocomplete="list" aria-label="搜尋巴士路線">
       <button class="clear" id="clear" type="button" aria-label="清除搜尋" hidden>×</button>
     </div>
     <ul id="results" role="listbox" aria-label="搜尋結果"></ul>
@@ -44,13 +44,13 @@
   <div id="board" style="display: contents"></div>
 
   <footer class="glass">
-    <span>資料：城巴 · <a href="https://data.gov.hk/tc-data/dataset/ctb-eta-transport-realtime-eta" target="_blank" rel="noopener">DATA.GOV.HK</a>，每 30 秒自動更新</span>
+    <span>資料：九巴、龍運、城巴 · <a href="https://data.gov.hk/tc-data/group/transportation" target="_blank" rel="noopener">DATA.GOV.HK</a>，每 30 秒自動更新</span>
     <span>路線圖為近似走線</span>
   </footer>
 </main>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-<script src="b3a-route.js"></script>
-<script src="app.js"></script>
+<script src="b3a-route.js?v=5"></script>
+<script src="app.js?v=5"></script>
 </body>
 </html>
