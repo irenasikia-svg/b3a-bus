@@ -10,6 +10,11 @@
   const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   const fmtClock = t => new Date(t).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Hong_Kong" });
   const bound = dir => (dir === "O" ? "outbound" : "inbound");
+  const ICON = {
+    pin: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></svg>`,
+    near: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 4 3.5 10.6l7 2.9 2.9 7z"/></svg>`,
+    down: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>`,
+  };
 
   // ---------- Cache (per-viewer convenience; everything still works without it) ----------
   const cache = {
@@ -177,7 +182,7 @@
   map.zoomControl?.setPosition("bottomright");
   L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19,
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · 九巴 龍運 城巴 <a href="https://data.gov.hk/tc-data/group/transportation">DATA.GOV.HK</a>',
   }).addTo(map);
   map.setView([22.41, 113.98], 12);
 
@@ -186,14 +191,14 @@
   function fitTo(points) {
     if (!points.length) return;
     const opts = phone.matches
-      ? { paddingTopLeft: [24, 70], paddingBottomRight: [24, Math.round(innerHeight * 0.56)] }
-      : { paddingTopLeft: [480, 70], paddingBottomRight: [48, 48] };
+      ? { paddingTopLeft: [24, 96], paddingBottomRight: [24, Math.round(innerHeight * 0.56)] }
+      : { paddingTopLeft: [460, 48], paddingBottomRight: [48, 48] };
     map.fitBounds(L.latLngBounds(points), opts);
   }
 
   function stopMarker(s, { key = false, label = "", color }) {
     const m = L.circleMarker([s.lat, s.lng], {
-      radius: key ? 8 : 4, weight: key ? 3 : 2, color, fillColor: css("--panel"), fillOpacity: 1,
+      radius: key ? 8 : 4, weight: key ? 3 : 2, color, fillColor: css("--marker"), fillOpacity: 1,
     }).addTo(mapLayer);
     if (key) m.bindTooltip(label || s.name, { permanent: true, direction: "right", offset: [10, 0], className: "stop-label" });
     else m.bindTooltip(s.name, { direction: "top", className: "stop-minor" });
@@ -212,7 +217,7 @@
     const m = markers[id];
     if (!m) return;
     const size = map.getSize(), zoom = 16;
-    const visible = phone.matches ? L.point(size.x / 2, size.y * 0.23) : L.point(440 + (size.x - 440) / 2, size.y / 2);
+    const visible = phone.matches ? L.point(size.x / 2, size.y * 0.27) : L.point(434 + (size.x - 434) / 2, size.y / 2);
     const offset = L.point(size.x / 2, size.y / 2).subtract(visible);
     map.flyTo(map.unproject(map.project(m.getLatLng(), zoom).add(offset), zoom), zoom, { animate: !reduceMotion, duration: 0.8 });
     m.openTooltip();
@@ -227,7 +232,7 @@
 
   function sectionEl(innerTop) {
     const el = document.createElement("section");
-    el.className = "dir glass";
+    el.className = "sheet glass glass-text";
     el.innerHTML = `${innerTop}<div class="next"><span class="empty">載入中…</span></div><ul class="later"></ul>`;
     return el;
   }
@@ -239,22 +244,19 @@
     document.title = home ? "B3A Fu Tai ⇄ Shenzhen Bay" : `${no} ${main} · 巴士到站`;
   }
 
-  function setLegend(html) { $("legend").innerHTML = html; }
-
   function b3aBoard() {
     const R = window.B3A_ROUTE;
-    setTitle("B3A", "富泰 ⇄ 深圳灣口岸", "城巴 · 實時到站", true);
-    setLegend(`<span><i></i>往深圳灣</span><span><i class="ret"></i>往富泰 · 山景</span>`);
+    setTitle("B3A", "富泰 ⇄ 深圳灣口岸", "城巴", true);
     $("home").hidden = true;
 
     const defs = [
       // Toward Shenzhen Bay -> when buses reach Fu Tai Estate (Castle Peak Road).
-      { stop: "003261", dir: "O", h: "往 深圳灣口岸", p: "到 富泰邨（青山公路）還有" },
+      { stop: "003261", dir: "O", h: "往 深圳灣口岸", p: "富泰邨 · 青山公路" },
       // Toward Fu Tai -> when buses leave Shenzhen Bay Port.
-      { stop: "003208", dir: "I", h: "往 富泰 · 山景邨", p: "深圳灣口岸開出還有" },
+      { stop: "003208", dir: "I", h: "往 富泰 · 山景邨", p: "深圳灣口岸 · 開出" },
     ];
     const sections = defs.map(d => {
-      const el = sectionEl(`<div class="dir-head"><div><h2>${d.h}</h2><p>${d.p}</p></div><button class="locate" type="button">地圖</button></div>`);
+      const el = sectionEl(`<div class="sheet-head"><div><h2>${d.h}</h2><p>${d.p}</p></div><button class="icon-btn locate" type="button" aria-label="在地圖上顯示">${ICON.pin}</button></div>`);
       el.querySelector(".locate").addEventListener("click", () => flyToStop(d.stop));
       return { el, co: "CTB", route: "B3A", stop: d.stop, dir: d.dir, st: "", etas: [] };
     });
@@ -262,7 +264,7 @@
 
     function drawMap() {
       resetMap();
-      const sodium = css("--sodium"), ret = css("--return");
+      const sodium = css("--accent"), ret = css("--return");
       L.polyline(R.paths.inbound, { color: ret, weight: 3, dashArray: "6 6", opacity: 0.9 }).addTo(mapLayer);
       L.polyline(R.paths.outbound, { color: sodium, weight: 4, opacity: 0.95 }).addTo(mapLayer);
       const KEY = { "003261": "富泰邨", "003208": "深圳灣口岸", "003201": "山景邨" };
@@ -303,24 +305,22 @@
     const op = OPS[co];
     const list = await op.routes().catch(() => null);
     const info = list?.find(r => r.route === routeNo);
-    setTitle(routeNo, info ? `${info.orig} ⇄ ${info.dest}` : `${op.name}路線`, `${op.name} · 實時到站`);
-    setLegend(`<span><i class="ret"></i>站點連線（近似）</span>`);
+    setTitle(routeNo, info ? `${info.orig} ⇄ ${info.dest}` : `${op.name}路線`, op.name);
     $("home").hidden = false;
 
-    const el = sectionEl(`<div class="dir-head"><div><h2 class="h">載入路線…</h2><p class="p"></p></div><button class="locate" type="button">地圖</button></div>
-      <div class="pick">
-        <div class="seg" role="group" aria-label="方向"></div>
-        <div class="stop-row variant-row" hidden><select class="variant" aria-label="班次類型"></select></div>
-        <div class="stop-row">
-          <select class="stop-select" aria-label="上車站" disabled><option>載入站點中…</option></select>
-          <button type="button" class="nearest">最近的站</button>
-        </div>
-        <p class="hint" hidden></p>
-      </div>`);
+    // The boarding stop is the sheet's title; tapping it opens the native picker.
+    const el = sectionEl(`<div class="sheet-head">
+        <label class="picker"><span class="picked h">載入路線…</span>${ICON.down}<select class="stop-select" aria-label="上車站" disabled></select></label>
+        <button class="icon-btn nearest" type="button" aria-label="選擇最近的站">${ICON.near}</button>
+        <button class="icon-btn locate" type="button" aria-label="在地圖上顯示">${ICON.pin}</button>
+      </div>
+      <div class="seg" role="group" aria-label="方向"></div>
+      <label class="picker variant-pick" hidden><span class="picked"></span>${ICON.down}<select class="variant" aria-label="班次類型"></select></label>
+      <p class="hint" hidden></p>`);
     boardEl.replaceChildren(el);
     const section = { el, co, route: routeNo, stop: null, dir: null, st: "", etas: [], idle: true, partner: null };
     const segEl = el.querySelector(".seg"), selectEl = el.querySelector(".stop-select");
-    const variantRow = el.querySelector(".variant-row"), variantEl = el.querySelector(".variant"), hintEl = el.querySelector(".hint");
+    const variantEl = el.querySelector(".variant"), variantPick = el.querySelector(".variant-pick"), hintEl = el.querySelector(".hint");
     const hint = msg => { hintEl.hidden = !msg; hintEl.textContent = msg || ""; };
     const stale = () => currentKey !== `${co}/${routeNo}`; // user moved on while loading
     resetMap();
@@ -360,7 +360,7 @@
 
     function drawMap() {
       resetMap();
-      const ret = css("--return"), sodium = css("--sodium");
+      const ret = css("--return"), sodium = css("--accent");
       dirs.map(main).forEach(v => {
         if (v !== cur) L.polyline(v.stops.map(s => [s.lat, s.lng]), { color: ret, weight: 2, opacity: 0.35, dashArray: "4 6" }).addTo(mapLayer);
       });
@@ -378,7 +378,7 @@
         const { stop, dist } = nearestStop(p.stops, here.lat, here.lng);
         if (dist < 300) section.partner = { ...p, stop: stop.id };
       }
-      $("title-sub").textContent = p ? "九巴 · 城巴聯營 · 實時到站" : `${op.name} · 實時到站`;
+      $("title-sub").textContent = p ? "九巴 · 城巴聯營" : op.name;
     }
 
     async function checkPartner() {
@@ -395,15 +395,15 @@
 
     function apply(stopId, { fit = false, fly = false } = {}) {
       const stop = cur.stops.find(s => s.id === stopId) || cur.stops[0];
-      const last = cur.stops[cur.stops.length - 1];
       Object.assign(section, { dir: cur.dir, st: cur.st, stop: stop.id, etas: [], loaded: false, idle: false });
-      el.querySelector(".h").textContent = `往 ${last.name}`;
-      el.querySelector(".p").textContent = `到 ${stop.name}${stop.road ? `（${stop.road}）` : ""}還有`;
+      el.querySelector(".h").textContent = stop.name;
       segEl.querySelectorAll("button").forEach(btn => btn.setAttribute("aria-pressed", String(btn.dataset.dir === cur.dir)));
       const same = variants.filter(v => v.dir === cur.dir);
-      variantRow.hidden = same.length < 2;
-      variantEl.innerHTML = same.map(v => `<option value="${v.st}"${v === cur ? " selected" : ""}>${v.st === "1" || !v.st ? "正常班次" : `特別班次：${esc(v.label)}`}（${v.stops.length} 站）</option>`).join("");
-      selectEl.innerHTML = cur.stops.map((s, i) => `<option value="${s.id}"${s.id === stop.id ? " selected" : ""}>${i + 1}. ${esc(s.name)}</option>`).join("");
+      const vLabel = v => (v.st === "1" || !v.st ? "正常班次" : `特別班次 · ${v.label}`);
+      variantPick.hidden = same.length < 2;
+      variantPick.querySelector(".picked").textContent = vLabel(cur);
+      variantEl.innerHTML = same.map(v => `<option value="${v.st}"${v === cur ? " selected" : ""}>${esc(vLabel(v))}</option>`).join("");
+      selectEl.innerHTML = cur.stops.map(s => `<option value="${s.id}"${s.id === stop.id ? " selected" : ""}>${esc(s.name)}${s.road ? ` · ${esc(s.road)}` : ""}</option>`).join("");
       selectEl.disabled = false;
       history.replaceState(null, "", `#${co.toLowerCase()}/${encodeURIComponent(routeNo)}/${cur.dir}${cur.st ? `-${cur.st}` : ""}/${stop.id}`);
       cache.set(`last:${co}:${routeNo}`, { dir: cur.dir, st: cur.st, stop: stop.id });
@@ -428,7 +428,7 @@
     }
 
     segEl.innerHTML = dirs.map(d => `<button type="button" data-dir="${d}">往 ${esc(main(d).stops.at(-1)?.name || "")}</button>`).join("");
-    if (dirs.length === 1) segEl.insertAdjacentHTML("beforeend", `<span class="hint" style="align-self:center;padding:0 8px">循環線</span>`);
+    if (dirs.length === 1) segEl.innerHTML = `<span class="solo">循環線 · 往 ${esc(main(dirs[0]).stops.at(-1)?.name || "")}</span>`;
     segEl.addEventListener("click", e => {
       const btn = e.target.closest("button[data-dir]");
       if (btn && btn.dataset.dir !== cur.dir) switchTo(main(btn.dataset.dir));
@@ -443,10 +443,10 @@
         const { latitude: lat, longitude: lng } = pos.coords;
         const { stop, dist } = nearestStop(cur.stops.length > 1 ? cur.stops.slice(0, -1) : cur.stops, lat, lng);
         userMarker = L.marker([lat, lng], { icon: L.divIcon({ className: "user-dot", iconSize: [16, 16] }), interactive: false });
-        hint(dist > 3000 ? `你離這條路線較遠，最近的站約 ${(dist / 1000).toFixed(1)} 公里` : `最近的站：${stop.name}（約 ${Math.round(dist / 10) * 10} 米）`);
+        hint(dist > 3000 ? `最近的站在 ${(dist / 1000).toFixed(1)} 公里外` : `最近的站約 ${Math.round(dist / 10) * 10} 米`);
         apply(stop.id, { fly: true });
       }, err => {
-        hint(err.code === 1 ? "未獲定位權限，請在瀏覽器設定中允許，或直接選擇車站" : "暫時無法取得位置，請直接選擇車站");
+        hint(err.code === 1 ? "沒有定位權限，請直接選擇車站" : "暫時無法定位，請直接選擇車站");
       }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
     });
 
@@ -470,20 +470,23 @@
     const nextEl = s.el.querySelector(".next"), laterEl = s.el.querySelector(".later");
     if (s.idle || !s.stop) return;
     const upcoming = s.etas.filter(e => e.t > now - 60000);
-    const tag = e => (s.partner ? `<span class="co">${coName(e.co)}</span>` : "");
+    // KMB marks timetable-only times as "原定班次"; show that quietly instead of repeating the words.
+    const sched = e => /原定班次|Scheduled/.test(e.rmk || "");
+    const note = e => [s.partner ? coName(e.co) : "", sched(e) ? "時刻表" : esc(e.rmk || "")].filter(Boolean).join(" · ");
     if (!upcoming.length) {
       if (!s.loaded) return;
-      nextEl.innerHTML = `<span class="empty">${s.failed ? "未能載入班次，請按「刷新」再試" : (s.rmk ? `暫時沒有 ${esc(s.route)} 班次（${esc(s.rmk)}）` : `暫時沒有 ${esc(s.route)} 在這個站的到站資料，可能已收車或未開始服務。`)}</span>`;
+      nextEl.innerHTML = `<span class="empty">${s.failed ? "未能載入，請按刷新再試" : (s.rmk ? esc(s.rmk) : "暫時沒有班次")}</span>`;
       laterEl.innerHTML = "";
       return;
     }
     const [first, ...rest] = upcoming;
     const m = Math.ceil((first.t - now) / 60000);
+    const firstNote = note(first);
     nextEl.innerHTML = (m <= 0 ? `<span class="big due">即將到站</span>` : `<span class="big">${m}</span><span class="unit">分鐘</span>`)
-      + `<span class="clock">${tag(first)}${fmtClock(first.t)}${first.rmk ? `<br><span class="rmk">${esc(first.rmk)}</span>` : ""}</span>`;
+      + `<span class="clock">${fmtClock(first.t)}${firstNote ? `<small>${firstNote}</small>` : ""}</span>`;
     laterEl.innerHTML = rest.map(e => {
       const mm = Math.max(0, Math.ceil((e.t - now) / 60000));
-      return `<li><b>${mm}</b> 分 · ${fmtClock(e.t)}${e.rmk ? ` · ${esc(e.rmk)}` : ""}${tag(e)}</li>`;
+      return `<li class="${sched(e) ? "sched" : ""}" title="${fmtClock(e.t)}${sched(e) ? " · 時刻表" : ""}"><b>${mm}</b>分${s.partner ? `<small>${coName(e.co)}</small>` : ""}</li>`;
     }).join("");
   }
 
@@ -492,9 +495,12 @@
     board?.sections.forEach(s => renderSection(s, now));
     const ago = lastOk ? Math.max(0, Math.round((now - lastOk) / 1000)) : null;
     const until = Math.max(0, Math.ceil((nextAt - now) / 1000));
-    if (loading) statusEl.textContent = "更新中…";
-    else if (error) statusEl.innerHTML = `<span class="err">${esc(error)}</span>${ago !== null ? ` · 上次成功 ${ago} 秒前` : ""}`;
-    else if (ago !== null) statusEl.textContent = `${ago} 秒前更新 · ${until} 秒後自動刷新`;
+    if (loading) statusEl.textContent = "更新中";
+    else if (error) statusEl.innerHTML = `<span class="err">未能更新</span>`;
+    else statusEl.textContent = ago === null ? "" : ago < 5 ? "剛剛更新" : `${ago} 秒前更新`;
+    refreshBtn.classList.toggle("failed", !!error && !loading);
+    refreshBtn.title = error || (ago === null ? "刷新" : `${until} 秒後自動刷新`);
+    refreshBtn.style.setProperty("--ring-offset", String(119.4 * (1 - Math.min(1, until / (REFRESH_MS / 1000)))));
   }
 
   async function loadSection(s) {
@@ -559,7 +565,7 @@
     if (!forceReload && key === currentKey) return;
     currentKey = key;
     lastOk = null; error = null;
-    statusEl.textContent = "載入中…";
+    statusEl.textContent = "";
     if (!key) {
       board = b3aBoard();
       load(true);
@@ -570,7 +576,7 @@
     }
   }
   addEventListener("hashchange", () => go(location.hash));
-  $("home").addEventListener("click", () => { history.pushState(null, "", location.pathname); go(""); });
+  $("home").addEventListener("click", () => { history.pushState(null, "", location.pathname + location.search); go(""); });
   matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", () => board?.redrawMap?.());
   phone.addEventListener?.("change", () => location.reload());
 
@@ -610,8 +616,9 @@
     resultsEl.innerHTML = note
       ? `<li class="note" role="presentation">${esc(note)}</li>`
       : items.map((r, i) => `<li role="option" id="opt-${i}" data-co="${r.co}" data-route="${esc(r.route)}" aria-selected="${i === active}">
-          <span class="rno">${esc(r.route)}</span><span class="rdest">${esc(r.orig)} → ${esc(r.dest)}<small>${esc(r.origEn)} → ${esc(r.destEn)}</small></span><span class="co co-${r.co.toLowerCase()}">${coName(r.co)}</span></li>`).join("");
-    qEl.setAttribute("aria-expanded", String(!!resultsEl.children.length));
+          <span class="rno">${esc(r.route)}</span><span class="rdest">往 ${esc(r.dest)}<small>${esc(r.orig)}開出</small></span><span class="op">${coName(r.co)}</span></li>`).join("");
+    resultsEl.hidden = !resultsEl.children.length;
+    qEl.setAttribute("aria-expanded", String(!resultsEl.hidden));
     qEl.setAttribute("aria-activedescendant", active >= 0 ? `opt-${active}` : "");
   }
 
@@ -638,13 +645,13 @@
     clearEl.hidden = !q;
     if (!norm(q)) return showResults([]);
     let routes;
-    if (!allRoutes) showResults([], "載入路線列表中…");
+    if (!allRoutes) showResults([], "載入中…");
     try { routes = await getAllRoutes(); } catch {
-      return showResults([], navigator.onLine === false ? "搜尋需要網絡連線" : "未能載入路線列表，請檢查網絡後再試");
+      return showResults([], navigator.onLine === false ? "搜尋需要網絡連線" : "未能載入路線，請稍後再試");
     }
     if (qEl.value !== q) return;
     const items = search(routes, q);
-    items.length ? showResults(items) : showResults([], `找不到「${q.trim()}」相關的九巴或城巴路線`);
+    items.length ? showResults(items) : showResults([], `沒有「${q.trim()}」的路線`);
   }
 
   qEl.addEventListener("input", onInput);

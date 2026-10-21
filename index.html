@@ -5,52 +5,45 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>B3A Fu Tai ⇄ Shenzhen Bay</title>
 <meta name="description" content="B3A 富泰邨 ⇄ 深圳灣口岸 實時到站時間，並可搜尋九巴、龍運及城巴路線（DATA.GOV.HK 開放數據）">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=Noto+Sans+HK:wght@400;500;700&display=swap">
+<meta name="theme-color" content="#e9eef3" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e1420" media="(prefers-color-scheme: dark)">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<link rel="stylesheet" href="style.css?v=5">
+<link rel="stylesheet" href="style.css?v=10">
 </head>
 <body>
 <div id="map" role="img" aria-label="路線圖"></div>
-<div class="legend glass" id="legend" aria-hidden="true"></div>
 
 <main class="wrap">
-  <div class="hero-title glass">
+  <header class="topbar glass">
+    <button class="icon-btn" id="home" type="button" aria-label="返回 B3A 富泰看板" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+    </button>
     <span class="route-no" id="title-no">B3A</span>
-    <div><h1 id="title-main">富泰 ⇄ 深圳灣口岸</h1><p id="title-sub">城巴 · 實時到站</p></div>
-  </div>
+    <div class="title-text">
+      <h1 id="title-main">富泰 ⇄ 深圳灣口岸</h1>
+      <p><span id="title-sub">城巴</span><span id="status" aria-live="polite"></span></p>
+    </div>
+    <button class="icon-btn refresh" id="refresh" type="button" aria-label="刷新">
+      <svg class="ring" viewBox="0 0 44 44" aria-hidden="true"><circle cx="22" cy="22" r="19"/></svg>
+      <svg class="arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 11.5a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4.5v5h-5"/></svg>
+    </button>
+  </header>
 
   <div class="search glass" role="search">
-    <div class="search-row">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-      <input id="q" type="search" placeholder="搜尋九巴或城巴路線，例如 960、B3X、中環" autocomplete="off" autocapitalize="characters" spellcheck="false"
-             role="combobox" aria-expanded="false" aria-controls="results" aria-autocomplete="list" aria-label="搜尋巴士路線">
-      <button class="clear" id="clear" type="button" aria-label="清除搜尋" hidden>×</button>
-    </div>
-    <ul id="results" role="listbox" aria-label="搜尋結果"></ul>
-  </div>
-
-  <button class="home glass" id="home" type="button" hidden>← 返回 B3A 富泰看板</button>
-
-  <div class="toolbar glass">
-    <span id="status" aria-live="polite">載入中…</span>
-    <button id="refresh" type="button">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg>
-      刷新
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
+    <input id="q" type="search" placeholder="搜尋路線或地點" autocomplete="off" autocapitalize="characters" spellcheck="false"
+           role="combobox" aria-expanded="false" aria-controls="results" aria-autocomplete="list" aria-label="搜尋九巴或城巴路線">
+    <button class="clear" id="clear" type="button" aria-label="清除搜尋" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m9 9 6 6m0-6-6 6"/></svg>
     </button>
   </div>
+  <ul id="results" class="glass glass-text" role="listbox" aria-label="搜尋結果" hidden></ul>
 
-  <div id="board" style="display: contents"></div>
-
-  <footer class="glass">
-    <span>資料：九巴、龍運、城巴 · <a href="https://data.gov.hk/tc-data/group/transportation" target="_blank" rel="noopener">DATA.GOV.HK</a>，每 30 秒自動更新</span>
-    <span>路線圖為近似走線</span>
-  </footer>
+  <div id="board"></div>
 </main>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-<script src="b3a-route.js?v=5"></script>
-<script src="app.js?v=5"></script>
+<script src="b3a-route.js?v=10"></script>
+<script src="app.js?v=10"></script>
 </body>
 </html>
