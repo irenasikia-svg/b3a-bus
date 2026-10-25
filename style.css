@@ -222,6 +222,25 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 .later li small, .clock .op { font-size: 12px; color: var(--ink-2); margin-left: 4px; }
 .hint { margin: 0; font-size: 13px; line-height: 18px; color: var(--ink-2); }
 
+/* Timetable: a quiet row at the foot of the sheet that expands in place */
+.tt-toggle {
+  display: flex; align-items: center; justify-content: space-between; width: calc(100% + 16px); margin: -4px -8px -8px;
+  min-height: 44px; padding: 0 8px; border: 0; border-top: 0.5px solid var(--hair); border-radius: 0 0 14px 14px;
+  background: none; font-size: 15px; color: var(--ink-2); cursor: pointer;
+}
+.tt-toggle:active { background: var(--fill); }
+.tt-toggle svg { width: 16px; height: 16px; stroke-width: 2.4; transition: transform 0.25s var(--ease); }
+.tt-toggle[aria-expanded="true"] svg { transform: rotate(180deg); }
+.tt { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.tt-from { margin: 4px 0 0; font-size: 13px; line-height: 18px; color: var(--ink-2); }
+.tt-rows { list-style: none; margin: 0; padding: 0; }
+.tt-rows li { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; font: 400 15px/20px var(--font-num); font-variant-numeric: tabular-nums; border-bottom: 0.5px solid var(--hair); }
+.tt-rows li:last-child { border-bottom: 0; }
+.tt-rows li span:last-child { color: var(--ink-2); }
+.tt-rows li.now { color: var(--accent); font-weight: 600; }
+.tt-rows li.now span:last-child { color: var(--accent); }
+.tt-days button { font-size: 12px; }
+
 /* ---------- Phones: map fills the top half, sheets rise over it ---------- */
 @media (max-width: 759px) {
   .wrap { max-width: none; padding-top: 10px; }

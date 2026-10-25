@@ -233,8 +233,82 @@
   function sectionEl(innerTop) {
     const el = document.createElement("section");
     el.className = "sheet glass glass-text";
-    el.innerHTML = `${innerTop}<div class="next"><span class="empty">載入中…</span></div><ul class="later"></ul>`;
+    el.innerHTML = `${innerTop}<div class="next"><span class="empty">載入中…</span></div><ul class="later"></ul>
+      <button class="tt-toggle" type="button" aria-expanded="false">時刻表${ICON.down}</button>
+      <div class="tt" hidden></div>`;
     return el;
+  }
+
+  // ---------- Timetables ----------
+  // Built from the Transport Department GTFS feed by tools/build_timetables.py: departures from each
+  // variant's first stop, as time windows with a headway, grouped by day type.
+  const TT_VERSION = "2026-10-14";
+  const ttMem = {};
+  const getTimetable = route => (ttMem[route] ??= getJSON(`timetables/${encodeURIComponent(route)}.json?v=${TT_VERSION}`).catch(() => []));
+  const holidays = getJSON(`timetables/holidays.json?v=${TT_VERSION}`).catch(() => []);
+  const TT_AGENCIES = { KMB: ["KMB", "LWB", "KMB+CTB", "LWB+CTB"], CTB: ["CTB", "KMB+CTB", "LWB+CTB"] };
+
+  function hkNow() {
+    const parts = Object.fromEntries(new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Hong_Kong", year: "numeric", month: "2-digit", day: "2-digit", weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
+      .formatToParts(new Date()).map(p => [p.type, p.value]));
+    return { date: `${parts.year}${parts.month}${parts.day}`, day: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].indexOf(parts.weekday), min: +parts.hour * 60 + +parts.minute };
+  }
+  const toMin = t => { const [h, m] = t.split(":"); return +h * 60 + +m; };
+
+  // Timetable variants that run along this direction: same operator family, starting near its first stop
+  // and ending at one of its stops (this also picks up short trips such as 深圳灣口岸 → 富泰邨).
+  function matchTimetable(all, co, stops) {
+    if (!stops?.length) return [];
+    const near = (p, s, m) => p && distance({ lat: p[0], lng: p[1] }, s) < m;
+    return all.filter(v => TT_AGENCIES[co].includes(v.agency) && near(v.o, stops[0], 1500) && stops.some(s => near(v.d, s, 600)));
+  }
+
+  function setupTimetable(s) {
+    const btn = s.el.querySelector(".tt-toggle"), box = s.el.querySelector(".tt");
+    btn.addEventListener("click", () => {
+      const open = btn.getAttribute("aria-expanded") !== "true";
+      btn.setAttribute("aria-expanded", String(open));
+      box.hidden = !open;
+      if (open) renderTimetable(s);
+    });
+  }
+
+  async function renderTimetable(s) {
+    const box = s.el.querySelector(".tt");
+    if (box.hidden) return;
+    if (!box.innerHTML) box.innerHTML = `<p class="hint">載入中…</p>`;
+    const [all, hol] = await Promise.all([getTimetable(s.route), holidays]);
+    const variants = matchTimetable(all, s.co, s.ttStops);
+    if (!variants.length) { box.innerHTML = `<p class="hint">暫時沒有這個方向的時刻表</p>`; return; }
+
+    const now = hkNow(), isHoliday = hol.includes(now.date);
+    const todays = v => v.days.find(d => (isHoliday ? d.holidays : d.mask[now.day] === "1" && !(d.holidays && !d.mask.includes("1")))) || v.days[0];
+    const main = variants[0];
+    if (!main.days.some(d => d.label === s.ttDay)) s.ttDay = todays(main).label;
+    const picked = main.days.find(d => d.label === s.ttDay);
+    const isToday = picked === todays(main);
+
+    const rowsHtml = day => {
+      const rows = day.rows;
+      // The window running now, or else the next single departure.
+      const cur = !isToday ? -1 : rows.findIndex(r => (r.length === 3 ? toMin(r[0]) <= now.min && now.min < toMin(r[1]) : toMin(r[0]) >= now.min));
+      return rows.map((r, i) => `<li${i === cur ? ` class="now"` : ""}>${r.length === 3
+        ? `<span>${r[0]} – ${r[1]}</span><span>每 ${r[2]} 分</span>` : `<span>${r[0]}</span><span></span>`}</li>`).join("");
+    };
+    // Other variants show the group that overlaps the chosen day type.
+    const shown = variants.map((v, i) => [v, i === 0 ? picked : v.days.find(d => [...d.mask].some((b, k) => b === "1" && picked.mask[k] === "1") || (d.holidays && picked.holidays))])
+      .filter(([, day]) => day);
+    const blocks = shown.map(([v, day]) => {
+      const title = shown.length > 1 ? `${esc(v.from)} 開出 · 往 ${esc(v.to)}` : `${esc(v.from)} 開出`;
+      return `<p class="tt-from">${title}</p><ol class="tt-rows">${rowsHtml(day)}</ol>`;
+    }).join("");
+    box.innerHTML = (main.days.length > 1
+      ? `<div class="seg tt-days" role="group" aria-label="日子">${main.days.map(d => `<button type="button" data-day="${esc(d.label)}" aria-pressed="${d === picked}">${esc(d.label.replace(/^星期/, ""))}</button>`).join("")}</div>`
+      : `<p class="tt-from">${esc(picked.label)}</p>`) + blocks;
+    box.querySelector(".tt-days")?.addEventListener("click", e => {
+      const b = e.target.closest("button[data-day]");
+      if (b) { s.ttDay = b.dataset.day; renderTimetable(s); }
+    });
   }
 
   function setTitle(no, main, sub, home = false) {
@@ -258,7 +332,9 @@
     const sections = defs.map(d => {
       const el = sectionEl(`<div class="sheet-head"><div><h2>${d.h}</h2><p>${d.p}</p></div><button class="icon-btn locate" type="button" aria-label="在地圖上顯示">${ICON.pin}</button></div>`);
       el.querySelector(".locate").addEventListener("click", () => flyToStop(d.stop));
-      return { el, co: "CTB", route: "B3A", stop: d.stop, dir: d.dir, st: "", etas: [] };
+      const s = { el, co: "CTB", route: "B3A", stop: d.stop, dir: d.dir, st: "", etas: [], ttStops: d.dir === "O" ? R.stops.outbound : R.stops.inbound };
+      setupTimetable(s);
+      return s;
     });
     boardEl.replaceChildren(...sections.map(s => s.el));
 
@@ -318,7 +394,8 @@
       <label class="picker variant-pick" hidden><span class="picked"></span>${ICON.down}<select class="variant" aria-label="班次類型"></select></label>
       <p class="hint" hidden></p>`);
     boardEl.replaceChildren(el);
-    const section = { el, co, route: routeNo, stop: null, dir: null, st: "", etas: [], idle: true, partner: null };
+    const section = { el, co, route: routeNo, stop: null, dir: null, st: "", etas: [], idle: true, partner: null, ttStops: null };
+    setupTimetable(section);
     const segEl = el.querySelector(".seg"), selectEl = el.querySelector(".stop-select");
     const variantEl = el.querySelector(".variant"), variantPick = el.querySelector(".variant-pick"), hintEl = el.querySelector(".hint");
     const hint = msg => { hintEl.hidden = !msg; hintEl.textContent = msg || ""; };
@@ -395,7 +472,7 @@
 
     function apply(stopId, { fit = false, fly = false } = {}) {
       const stop = cur.stops.find(s => s.id === stopId) || cur.stops[0];
-      Object.assign(section, { dir: cur.dir, st: cur.st, stop: stop.id, etas: [], loaded: false, idle: false });
+      Object.assign(section, { dir: cur.dir, st: cur.st, stop: stop.id, etas: [], loaded: false, idle: false, ttStops: cur.stops });
       el.querySelector(".h").textContent = stop.name;
       segEl.querySelectorAll("button").forEach(btn => btn.setAttribute("aria-pressed", String(btn.dataset.dir === cur.dir)));
       const same = variants.filter(v => v.dir === cur.dir);
@@ -415,6 +492,7 @@
       el.querySelector(".later").innerHTML = "";
       load(true);
       checkPartner();
+      renderTimetable(section);
     }
 
     // Switching direction or trip type keeps the same stop if served, otherwise the closest one,
